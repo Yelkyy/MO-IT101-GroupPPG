@@ -10,7 +10,7 @@ import java.text.DecimalFormat;
 
 public class EmployeeRepository {
 
-    DecimalFormat df = new DecimalFormat("P #,##0.00");
+    DecimalFormat df = new DecimalFormat("PHP #,##0.00");
 
     private MySQLConnection mySQLConnection;
 
@@ -76,6 +76,7 @@ public class EmployeeRepository {
         double totalAllowance = parseDouble(employee.get("Phone Allowance")) +
                 parseDouble(employee.get("Clothing Allowance")) +
                 parseDouble(employee.get("Rice Subsidy"));
+        int totalAbsences = 0;
 
         for (DynamicModel record : attendance) {
             String logIn = record.get("Log In").toString();
@@ -89,6 +90,12 @@ public class EmployeeRepository {
             if (workedHours > 8) {
                 overtimeHours += (workedHours - 8);
             }
+
+            // Track number of absences (assuming absence is marked in the "Log In" field as
+            // null or similar)
+            if (logIn == null || logOut == null) {
+                totalAbsences++;
+            }
         }
 
         // Calculate salary
@@ -98,11 +105,11 @@ public class EmployeeRepository {
 
         // Deductions
         double basicSalary = parseDouble(employee.get("Basic Salary"));
-        double sss = basicSalary * 0.045; // 4.5% of Basic Salary
-        double philhealth = basicSalary * 0.0275; // 2.75% of Basic Salary
-        double pagibig = 100.00; // Fixed Pag-ibig Deduction (100 PHP)
+        double sss = calculateSSS(basicSalary); // SSS contribution based on salary
+        double philhealth = calculatePhilHealth(basicSalary); // PhilHealth contribution based on salary
+        double pagibig = calculatePagibig(basicSalary); // Pag-ibig contribution
         double withholdingTax = (regularSalary + overtimePay) * 0.12;
-        double lateDeduction = 0; // Not calculated yet
+        double lateDeduction = totalAbsences * 200.00; // Assuming PHP 200 per absence
 
         // Calculate net salary
         double grossSalary = regularSalary + overtimePay + totalAllowance;
@@ -124,7 +131,7 @@ public class EmployeeRepository {
         System.out.println("PhilHealth: " + df.format(philhealth));
         System.out.println("Pag-ibig: " + df.format(pagibig));
         System.out.println("Withholding Tax: " + df.format(withholdingTax));
-        System.out.println("Late Deduction: " + df.format(lateDeduction));
+        System.out.println("Absence/Late Deduction: " + df.format(lateDeduction));
         System.out.println("Deductions: " + df.format(totalDeductions));
 
         System.out.println("\n-----------\n");
@@ -171,7 +178,44 @@ public class EmployeeRepository {
         }
     }
 
+    // Method to calculate the SSS contribution (4.5% of basic salary, minimum PHP
+    // 3,000 salary)
+    private double calculateSSS(double basicSalary) {
+        if (basicSalary < 3000) {
+            basicSalary = 3000; // Minimum salary for SSS contribution
+        } else if (basicSalary > 25000) {
+            basicSalary = 25000; // Maximum salary for SSS contribution
+        }
+        return basicSalary * 0.045; // 4.5% of Basic Salary
+    }
+
+    // Method to calculate the PhilHealth contribution (2.25% of basic salary,
+    // capped at PHP 80,000 salary)
+    private double calculatePhilHealth(double basicSalary) {
+        if (basicSalary < 10000) {
+            basicSalary = 10000; // Minimum salary for PhilHealth contribution
+        } else if (basicSalary > 80000) {
+            basicSalary = 80000; // Maximum salary for PhilHealth contribution
+        }
+        return basicSalary * 0.0225; // 2.25% of Basic Salary
+    }
+
+    // Method to calculate the Pag-ibig contribution (2% of basic salary, capped at
+    // PHP 5,000)
+    private double calculatePagibig(double basicSalary) {
+        double pagibig = basicSalary * 0.02; // 2% of Basic Salary
+        if (pagibig > 5000) {
+            return 5000; // Cap the Pag-ibig contribution at PHP 5,000
+        } else if (pagibig < 1000) {
+            return 1000; // Minimum Pag-ibig contribution is PHP 1,000
+        }
+        return pagibig;
+    }
+
     private double calculateWorkedHours(String logIn, String logOut) {
+        if (logIn == null || logOut == null) {
+            return 0; // If there's no time, consider it as zero hours worked
+        }
         String[] in = logIn.split(":");
         String[] out = logOut.split(":");
 
