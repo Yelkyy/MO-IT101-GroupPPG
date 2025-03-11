@@ -1,0 +1,6 @@
+import math
+
+# Define SSS contribution table
+sss_table = [ 
+    (0, 3250, 135), (3250, 3750, 157.5), (3750, 4250, 180), (4250, 4750, 202.5)),
+    (
