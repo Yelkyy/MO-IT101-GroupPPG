@@ -1,0 +1,23 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "compile-java",
+            "type": "shell",
+            "command": "javac -d bin -cp \".;lib/mysql-connector-j-9.2.0.jar\" src/main/app/*.java src/main/db/*.java src/main/repository/*.java src/main/model/*.java",
+            "problemMatcher": []
+        },
+        {
+            "label": "copy-resources",
+            "type": "shell",
+            "command": "xcopy /E /I /Y src\\main\\resources bin\\resources",
+            "problemMatcher": []
+        },
+        {
+            "label": "run-app",
+            "type": "shell",
+            "command": "java -cp \".;bin;lib/mysql-connector-j-9.2.0.jar;bin/resources\" app.App",
+            "problemMatcher": []
+        }
+    ]
+}

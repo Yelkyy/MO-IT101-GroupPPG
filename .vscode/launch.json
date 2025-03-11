@@ -1,0 +1,19 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "Run MotorPHC",
+            "request": "launch",
+            "mainClass": "app.App",
+            "classpath": [
+                "bin",
+                "lib/mysql-connector-j-9.2.0.jar",
+                "bin/resources"
+            ],
+            "vmArgs": "-Dfile.encoding=UTF-8",
+            "console": "externalTerminal",
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
