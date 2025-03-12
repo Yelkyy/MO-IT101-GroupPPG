@@ -7,11 +7,16 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.text.DecimalFormat;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.WeekFields;
+import java.util.Locale;
+import java.time.Duration;
+import java.time.LocalTime;
 
 public class EmployeeRepository {
 
     DecimalFormat df = new DecimalFormat("PHP #,##0.00");
-
     private MySQLConnection mySQLConnection;
 
     public EmployeeRepository() {
@@ -41,18 +46,30 @@ public class EmployeeRepository {
         return employees;
     }
 
-    public List<DynamicModel> getAttendanceByMonthYear(int employeeId, String month, String year) {
+    public List<DynamicModel> getAttendanceByWeekRange(int employeeId, String month, String year, int startWeek,
+            int endWeek) {
         List<DynamicModel> attendance = new ArrayList<>();
+        LocalDate startDate = getStartDateFromWeek(year, month, startWeek);
+        LocalDate endDate = getEndDateFromWeek(year, month, endWeek);
+
+        DateTimeFormatter dbFormat = DateTimeFormatter.ofPattern("MM/dd/yyyy");
+        String formattedStartDate = startDate.format(dbFormat);
+        String formattedEndDate = endDate.format(dbFormat);
+
         String query = "SELECT * FROM motorph.attendance_record WHERE `Employee #` = ? " +
-                "AND YEAR(STR_TO_DATE(`Date`, '%m/%d/%Y')) = ? " +
-                "AND MONTH(STR_TO_DATE(`Date`, '%m/%d/%Y')) = ?;";
+                "AND STR_TO_DATE(`Date`, '%m/%d/%Y') BETWEEN STR_TO_DATE(?, '%m/%d/%Y') AND STR_TO_DATE(?, '%m/%d/%Y')";
 
         try (Connection conn = mySQLConnection.connect();
                 PreparedStatement stmt = conn.prepareStatement(query)) {
 
             stmt.setInt(1, employeeId);
-            stmt.setString(2, year); // Match the year (last part)
-            stmt.setString(3, month); // Match the middle part (Month)
+            stmt.setString(2, formattedStartDate);
+            stmt.setString(3, formattedEndDate);
+
+            // System.out.println("Executing SQL: " + query);
+            // System.out.println("Employee ID: " + employeeId);
+            // System.out.println("Start Date: " + formattedStartDate);
+            // System.out.println("End Date: " + formattedEndDate);
 
             ResultSet rs = stmt.executeQuery();
             while (rs.next()) {
@@ -66,120 +83,149 @@ public class EmployeeRepository {
         return attendance;
     }
 
-    public void calculatePayroll(DynamicModel employee, List<DynamicModel> attendance, String month, String year) {
-        // Display the payroll summary header with the month and year
-        System.out.println("\n=== Payroll Summary for " + employee.get("first_name") + " " + employee.get("last_name") +
-                " for the month of " + getMonthName(month) + " " + year + " ===");
+    private LocalDate getStartDateFromWeek(String year, String month, int weekNumber) {
+        LocalDate firstDayOfMonth = LocalDate.of(Integer.parseInt(year), Integer.parseInt(month), 1);
+        return firstDayOfMonth.plusWeeks(weekNumber - 1);
+    }
 
+    private LocalDate getEndDateFromWeek(String year, String month, int weekNumber) {
+        return getStartDateFromWeek(year, month, weekNumber).plusDays(6);
+    }
+
+    public void calculateWeeklyPayroll(DynamicModel employee, List<DynamicModel> attendance,
+            String month, String year, int startWeek, int endWeek, boolean isSingleWeek) {
+
+        double basicSalary = employee.getDouble("basic_salary"); // Fetch the basic salary from the database
+        double expectedHoursPerMonth = 160; // Standard full-time hours per month
         double totalHours = 0;
-        double overtimeHours = 0;
-        double totalAllowance = parseDouble(employee.get("Phone Allowance")) +
-                parseDouble(employee.get("Clothing Allowance")) +
-                parseDouble(employee.get("Rice Subsidy"));
-        int totalAbsences = 0;
+        double totalOvertime = 0;
+        double totalLate = 0;
+        double hourlyRate = employee.getDouble("hourly_rate");
+        double overtimeRate = hourlyRate * 1.5;
+        double lateDeductionRate = hourlyRate / 60; // Deduction per late minute
+        double riceSubsidy = employee.getDouble("rice_subsidy");
+        double phoneAllowance = employee.getDouble("phone_allowance");
+        double clothingAllowance = employee.getDouble("clothing_allowance");
+
+        // Adjusting the Non-Taxable Allowance
+        double nonTaxable = 0;
+        if (startWeek == 1 && endWeek == 4) {
+            // Full Month, use the full non-taxable allowance
+            nonTaxable = riceSubsidy + phoneAllowance + clothingAllowance;
+        } else if (startWeek == 1 && endWeek == 2) {
+            // Biweekly, prorate the non-taxable allowance for 2 weeks
+            nonTaxable = (riceSubsidy + phoneAllowance + clothingAllowance) / 2;
+        } else {
+            // Single week, prorate the non-taxable allowance for 1 week
+            nonTaxable = (riceSubsidy + phoneAllowance + clothingAllowance) / 4;
+        }
+
+        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("H:mm");
 
         for (DynamicModel record : attendance) {
-            String logIn = record.get("Log In").toString();
-            String logOut = record.get("Log Out").toString();
+            LocalTime logIn = LocalTime.parse(record.getString("log_in"), timeFormatter);
+            LocalTime logOut = LocalTime.parse(record.getString("log_out"), timeFormatter);
+            Duration workDuration = Duration.between(logIn, logOut);
 
-            // Calculate worked hours
-            double workedHours = calculateWorkedHours(logIn, logOut);
-            totalHours += workedHours;
+            double hoursWorked = workDuration.toMinutes() / 60.0;
+            double overtimeHours = Math.max(0, hoursWorked - 8);
+            double lateMinutes = Math.max(0, Duration.between(LocalTime.of(8, 0), logIn).toMinutes());
 
-            // Calculate overtime (if any)
-            if (workedHours > 8) {
-                overtimeHours += (workedHours - 8);
-            }
-
-            // Track number of absences (assuming absence is marked in the "Log In" field as
-            // null or similar)
-            if (logIn == null || logOut == null) {
-                totalAbsences++;
-            }
+            totalHours += hoursWorked;
+            totalOvertime += overtimeHours;
+            totalLate += lateMinutes;
         }
 
-        // Calculate salary
-        double hourlyRate = parseDouble(employee.get("Hourly Rate"));
-        double regularSalary = totalHours * hourlyRate;
-        double overtimePay = overtimeHours * (hourlyRate * 1.25);
+        // Calculate the basic pay based on the period (single week or biweekly)
+        double basicPay = 0;
 
-        // Deductions
-        double basicSalary = parseDouble(employee.get("Basic Salary"));
-        double sss = calculateSSS(basicSalary); // SSS contribution based on salary
-        double philhealth = calculatePhilHealth(basicSalary); // PhilHealth contribution based on salary
-        double pagibig = calculatePagibig(basicSalary); // Pag-ibig contribution
-        double withholdingTax = (regularSalary + overtimePay) * 0.12;
-        double lateDeduction = totalAbsences * 200.00; // Assuming PHP 200 per absence
+        // **Week 1: Prorate based on total hours worked compared to the expected
+        // full-time month hours**
+        if (startWeek == 1 && endWeek == 1) {
+            basicPay = (basicSalary / expectedHoursPerMonth) * totalHours; // Pro-rate for Week 1 based on worked hours
+        } else if (startWeek == 1 && endWeek == 2) {
+            // Biweekly period (1-2 weeks), so basic pay is half of the monthly salary
+            basicPay = basicSalary / 2; // PHP 45,000 for 1-2 weeks
+        } else {
+            // Single week, prorate based on actual hours worked
+            double maxPossiblePay = (basicSalary * (expectedHoursPerMonth));
+            basicPay = Math.min(hourlyRate * totalHours, maxPossiblePay);
+        }
 
-        // Calculate net salary
-        double grossSalary = regularSalary + overtimePay + totalAllowance;
-        double totalDeductions = sss + philhealth + pagibig + withholdingTax + lateDeduction;
-        double netSalary = grossSalary - totalDeductions;
+        // **Fix for Week Range 1-4: Cap the basic pay to PHP 90,000 for the full
+        // month**
+        if (startWeek == 1 && endWeek == 4) {
+            basicPay = Math.min(basicPay, basicSalary); // Ensure that basic pay does not exceed PHP 90,000
+        }
 
-        // Display payroll summary details
-        System.out.println("Total Hours Worked: " + String.format("%.2f", totalHours));
-        System.out.println("Overtime Hours: " + String.format("%.2f", overtimeHours));
+        double overtimePay = totalOvertime * hourlyRate;
+
+        // Fix: Adjust late deduction to account for overtime
+        double lateDeduction = totalLate * lateDeductionRate; // Deduct late minutes from basic pay first
+        double maxLateDeduction = basicPay * 0.5; // Cap at 50% of basic pay
+        lateDeduction = Math.min(lateDeduction, maxLateDeduction); // Apply cap
+
+        // **Calculate Overtime Pay Separately**
+        double grossPay = basicPay + nonTaxable + overtimePay - lateDeduction;
+
+        // Deduction logic for Week 4 or Full Month
+        boolean showDeductions = (startWeek == 4 || (startWeek == 1 && endWeek == 4));
+
+        double sss = 0;
+        double philhealth = 0;
+        double pagibig = 0;
+        double withholdingTax = 0;
+        double totalDeductions = 0;
+        if (showDeductions) {
+            sss = calculateSSS(grossPay);
+            philhealth = calculatePhilHealth(grossPay);
+            pagibig = calculatePagibig(grossPay);
+            withholdingTax = grossPay * 0.12;
+            totalDeductions = sss + philhealth + pagibig + withholdingTax;
+        }
+
+        double netPay = grossPay - totalDeductions;
+
+        // **Display correct week format**
+        String weekDisplay = isSingleWeek ? "Week: " + startWeek + " of " + month + "/" + year
+                : "Week: " + startWeek + " to " + endWeek + " of " + month + "/" + year;
+
+        System.out
+                .println("\nPayroll Summary for " + employee.get("first_name") + " " + employee.get("last_name") + ":");
+        System.out.println(weekDisplay);
+        System.out.println("=====================================");
+        System.out.println("\nTotal Hours Worked: " + String.format("%.2f", totalHours));
+        System.out.println("Total Overtime Hours: " + String.format("%.2f", totalOvertime));
+        System.out.println("Total Late Minutes: " + totalLate);
+
+        System.out.println("\nBasic Pay: " + df.format(basicPay));
+        System.out.println("Non-Taxable Allowance: " + df.format(nonTaxable));
         System.out.println("Overtime Pay: " + df.format(overtimePay));
-        System.out.println("Total Allowance: " + df.format(totalAllowance));
-        System.out.println("Regular Salary: " + df.format(regularSalary));
-        System.out.println("Gross Salary: " + df.format(grossSalary));
+        System.out.println("Late Deduction: " + df.format(lateDeduction));
+        System.out.println("-------------------------------------");
+        System.out.println("Gross Pay: " + df.format(grossPay));
+        System.out.println("-------------------------------------");
 
-        System.out.println("\n--- Deductions ---");
-
-        // Display deductions and net salary
-        System.out.println("SSS: " + df.format(sss));
-        System.out.println("PhilHealth: " + df.format(philhealth));
-        System.out.println("Pag-ibig: " + df.format(pagibig));
-        System.out.println("Withholding Tax: " + df.format(withholdingTax));
-        System.out.println("Absence/Late Deduction: " + df.format(lateDeduction));
-        System.out.println("Deductions: " + df.format(totalDeductions));
-
-        System.out.println("\n-----------\n");
-
-        System.out.println("Net Salary: " + df.format(netSalary));
-    }
-
-    // ✅ This method automatically removes commas before parsing
-    private double parseDouble(Object value) {
-        if (value == null)
-            return 0;
-        String strValue = value.toString().replace(",", ""); // Remove comma
-        return Double.parseDouble(strValue);
-    }
-
-    private String getMonthName(String month) {
-        switch (month) {
-            case "01":
-                return "January";
-            case "02":
-                return "February";
-            case "03":
-                return "March";
-            case "04":
-                return "April";
-            case "05":
-                return "May";
-            case "06":
-                return "June";
-            case "07":
-                return "July";
-            case "08":
-                return "August";
-            case "09":
-                return "September";
-            case "10":
-                return "October";
-            case "11":
-                return "November";
-            case "12":
-                return "December";
-            default:
-                return "Unknown Month";
+        // Display deductions only if it's Week 4 or Full Month
+        if (showDeductions) {
+            System.out.println("Withholding Tax " + df.format(withholdingTax));
+            System.out.println("SSS Contribution " + df.format(sss));
+            System.out.println("Philhealth Contribution " + df.format(philhealth));
+            System.out.println("PAG-IBIG Contribution " + df.format(pagibig));
+            System.out.println("-------------------------------------");
+            System.out.println("Total Deductions: " + df.format(totalDeductions));
+        } else {
+            System.out.println("Withholding Tax: 0");
+            System.out.println("SSS Contribution: 0");
+            System.out.println("Philhealth Contribution: 0");
+            System.out.println("PAG-IBIG Contribution: 0");
+            System.out.println("Total Deductions: 0");
         }
+
+        System.out.println("-------------------------------------");
+        System.out.println("\033[1mNet Pay: " + df.format(netPay) + "\033[0m");
     }
 
-    // Method to calculate the SSS contribution (4.5% of basic salary, minimum PHP
-    // 3,000 salary)
     private double calculateSSS(double basicSalary) {
         if (basicSalary < 3000) {
             basicSalary = 3000; // Minimum salary for SSS contribution
@@ -189,8 +235,6 @@ public class EmployeeRepository {
         return basicSalary * 0.045; // 4.5% of Basic Salary
     }
 
-    // Method to calculate the PhilHealth contribution (2.25% of basic salary,
-    // capped at PHP 80,000 salary)
     private double calculatePhilHealth(double basicSalary) {
         if (basicSalary < 10000) {
             basicSalary = 10000; // Minimum salary for PhilHealth contribution
@@ -200,31 +244,7 @@ public class EmployeeRepository {
         return basicSalary * 0.0225; // 2.25% of Basic Salary
     }
 
-    // Method to calculate the Pag-ibig contribution (2% of basic salary, capped at
-    // PHP 5,000)
-    private double calculatePagibig(double basicSalary) {
-        double pagibig = basicSalary * 0.02; // 2% of Basic Salary
-        if (pagibig > 5000) {
-            return 5000; // Cap the Pag-ibig contribution at PHP 5,000
-        } else if (pagibig < 1000) {
-            return 1000; // Minimum Pag-ibig contribution is PHP 1,000
-        }
-        return pagibig;
-    }
-
-    private double calculateWorkedHours(String logIn, String logOut) {
-        if (logIn == null || logOut == null) {
-            return 0; // If there's no time, consider it as zero hours worked
-        }
-        String[] in = logIn.split(":");
-        String[] out = logOut.split(":");
-
-        int inHour = Integer.parseInt(in[0]);
-        int inMinute = Integer.parseInt(in[1]);
-        int outHour = Integer.parseInt(out[0]);
-        int outMinute = Integer.parseInt(out[1]);
-
-        double workedHours = (outHour + (outMinute / 60.0)) - (inHour + (inMinute / 60.0));
-        return workedHours;
+    private double calculatePagibig(double salary) {
+        return Math.min(100, salary * 0.02);
     }
 }

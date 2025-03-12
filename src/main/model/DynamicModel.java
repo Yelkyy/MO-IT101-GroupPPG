@@ -37,17 +37,34 @@ public class DynamicModel {
     public int getInt(String columnName) {
         String cleanColumnName = columnName.replace(" ", "_").toLowerCase();
         Object value = data.get(cleanColumnName);
-        return value != null ? Integer.parseInt(value.toString()) : 0;
+        try {
+            return value != null ? Integer.parseInt(value.toString()) : 0;
+        } catch (NumberFormatException e) {
+            System.err.println("Error parsing int for column: " + columnName + " - Value: " + value);
+            return 0;
+        }
     }
 
     public double getDouble(String columnName) {
         String cleanColumnName = columnName.replace(" ", "_").toLowerCase();
         Object value = data.get(cleanColumnName);
-        return value != null ? Double.parseDouble(value.toString()) : 0.0;
+
+        if (value != null) {
+            try {
+                return Double.parseDouble(value.toString().replace(",", "")); // Remove commas before parsing
+            } catch (NumberFormatException e) {
+                System.err.println("Error parsing double for column: " + columnName + " - Value: " + value);
+            }
+        }
+        return 0.0;
     }
 
     public boolean hasData() {
         return !data.isEmpty();
+    }
+
+    public int getId() {
+        return getInt("employee_id"); // Default ID column
     }
 
     @Override

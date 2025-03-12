@@ -35,26 +35,56 @@ public class App {
                 System.out.print("Enter Year (YYYY): ");
                 String year = scanner.nextLine();
 
-                List<DynamicModel> attendance = repository.getAttendanceByMonthYear(employee.getInt("employee_id"),
-                        month, year);
-                if (attendance.isEmpty()) {
-                    System.out.println("No attendance records found for " + month + "/" + year);
+                System.out.print("Do you want a [1] Single Week or [2] Week Range? ");
+                String choice = scanner.nextLine();
+
+                int startWeek, endWeek;
+                if (choice.equals("1")) {
+                    System.out.print("Enter Week Number: ");
+                    startWeek = Integer.parseInt(scanner.nextLine());
+                    endWeek = startWeek;
+                } else if (choice.equals("2")) {
+                    System.out.print("Enter Start Week Number: ");
+                    startWeek = Integer.parseInt(scanner.nextLine());
+                    System.out.print("Enter End Week Number: ");
+                    endWeek = Integer.parseInt(scanner.nextLine());
+
+                    if (endWeek < startWeek) {
+                        System.out.println("Invalid range! End week must be greater than or equal to start week.");
+                        continue;
+                    }
                 } else {
-                    repository.calculatePayroll(employee, attendance, month, year);
+                    System.out.println("Invalid choice. Please try again.");
+                    continue;
                 }
 
+                List<DynamicModel> attendance = repository.getAttendanceByWeekRange(employee.getInt("employee_id"),
+                        month, year, startWeek, endWeek);
+
+                if (attendance.isEmpty()) {
+                    System.out.println("No attendance records found for " + month + "/" + year +
+                            ", weeks " + startWeek + " to " + endWeek);
+                } else {
+                    boolean isSingleWeek = startWeek == endWeek; // Check if it's a single week selection
+                    repository.calculateWeeklyPayroll(employee, attendance, month, year, startWeek, endWeek,
+                            isSingleWeek);
+
+                }
+
+                System.out.println("\n------- MENU -------");
                 System.out.println("\n[1] Search Another Month/Year");
                 System.out.println("[2] Search Another Employee");
                 System.out.println("[3] Exit");
-                System.out.print("Choose an option:");
+                System.out.print("\nChoose an option: ");
                 String option = scanner.nextLine();
+                System.out.println("\n--------------");
 
                 if (option.equals("1")) {
                     continue;
                 } else if (option.equals("2")) {
                     break; // Go back to employee input
                 } else {
-                    System.out.println("Exiting... Goodbye!");
+                    System.out.println("Goodbye!");
                     System.exit(0);
                 }
             }
