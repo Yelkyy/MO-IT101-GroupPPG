@@ -30,8 +30,17 @@ public class App {
             System.out.println("Position: " + employee.get("position"));
 
             while (true) {
-                System.out.print("Enter Month (MM): ");
-                String month = scanner.nextLine();
+                String month;
+                while (true) {
+                    System.out.print("Enter Month (MM): ");
+                    month = scanner.nextLine();
+                    if (month.matches("0[1-9]|1[0-2]")) {
+                        break;
+                    } else {
+                        System.out.println("Invalid month. Please enter a value between 01 and 12.");
+                    }
+                }
+
                 System.out.print("Enter Year (YYYY): ");
                 String year = scanner.nextLine();
 

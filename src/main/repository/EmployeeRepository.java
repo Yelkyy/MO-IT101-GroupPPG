@@ -190,8 +190,14 @@ public class EmployeeRepository {
         String weekDisplay = isSingleWeek ? "Week: " + startWeek + " of " + month + "/" + year
                 : "Week: " + startWeek + " to " + endWeek + " of " + month + "/" + year;
 
+        // ANSI escape codes for coloring
+        String cyan = "\u001B[36m"; // Cyan text for employee's name
+        String green = "\u001B[32m"; // Green text for net pay
+        String reset = "\u001B[0m"; // Reset to default color
+
         System.out
-                .println("\nPayroll Summary for " + employee.get("first_name") + " " + employee.get("last_name") + ":");
+                .println("\nPayroll Summary for " + cyan + employee.get("first_name") + " " + employee.get("last_name")
+                        + reset + ":");
         System.out.println(weekDisplay);
         System.out.println("=====================================");
         System.out.println("\nTotal Hours Worked: " + String.format("%.2f", totalHours));
@@ -223,7 +229,7 @@ public class EmployeeRepository {
         }
 
         System.out.println("-------------------------------------");
-        System.out.println("\033[1mNet Pay: " + df.format(netPay) + "\033[0m");
+        System.out.println(green + "\033[1mNet Pay: " + df.format(netPay) + "\033[0m");
     }
 
     private double calculateSSS(double basicSalary) {
