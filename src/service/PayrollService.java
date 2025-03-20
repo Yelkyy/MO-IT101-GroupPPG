@@ -16,10 +16,7 @@ public class PayrollService {
 
     private static final Scanner scanner = new Scanner(System.in);
 
-    public static void processPayroll(EmployeeDetails employee, List<EmployeeTimeLogs> logs) {
-        System.out.print("Enter Month and Year (MM-YYYY): ");
-        String monthYear = scanner.nextLine();
-
+    public static void processPayroll(EmployeeDetails employee, List<EmployeeTimeLogs> logs, String monthYear) {
         System.out.println("Do you want a [1] Single Week or [2] Week Range?");
         int choice = scanner.nextInt();
         scanner.nextLine();
@@ -101,7 +98,7 @@ public class PayrollService {
         int weeksSelected = (endWeek - startWeek) + 1;
 
         double basicSalary = employee.getBasicSalary() * weeksSelected / 4;
-        double totalCompensation = basicSalary + employee.getRiceSubsidy() + employee.getPhoneAllowance()
+        double totalCompensation = employee.getRiceSubsidy() + employee.getPhoneAllowance()
                 + employee.getClothingAllowance();
 
         List<String[]> lateDeductions = hasDeductions ? calculateLateUndertime(logs) : new ArrayList<>();
@@ -115,7 +112,7 @@ public class PayrollService {
         double tax = hasDeductions ? calculateTax(basicSalary, nonTaxDeductions) : 0.0;
         double totalDeductions = nonTaxDeductions + tax;
 
-        double netPay = totalCompensation - totalDeductions;
+        double netPay = basicSalary + totalCompensation - totalDeductions;
 
         System.out.println("=============================================");
         System.out.println("          PAYROLL SUMMARY          ");
@@ -140,25 +137,6 @@ public class PayrollService {
         System.out.println("-------------------------------------");
         System.out.printf("Net Pay            : PHP %,10.2f%n", netPay);
         System.out.println("=============================================");
-
-        // // Late & Undertime Deduction Table --- if you want to display the late and
-        // undertime deductions
-        // System.out.println(
-        // "============================================================================================");
-        // System.out.println(" LATE & UNDERTIME DEDUCTIONS ");
-        // System.out.println(
-        // "============================================================================================");
-        // System.out.printf("| %-12s | %-12s | %-12s | %-12s |%n", "Date", "Late
-        // (mins)", "Undertime (mins)",
-        // "Deduction (PHP)");
-        // System.out.println("-------------------------------------");
-
-        // for (String[] record : lateDeductions) {
-        // System.out.printf("| %-12s | %12s | %12s | %12s |%n",
-        // record[0], record[1], record[2], record[3]);
-        // }
-        // System.out.println(
-        // "============================================================================================\n");
     }
 
     private static List<String[]> calculateLateUndertime(List<EmployeeTimeLogs> logs) {
