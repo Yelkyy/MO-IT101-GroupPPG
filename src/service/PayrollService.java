@@ -111,11 +111,10 @@ public class PayrollService {
         double sss = hasDeductions ? calculateSSS(basicSalary) : 0.0;
         double philhealth = hasDeductions ? calculatePhilHealth(basicSalary) : 0.0;
         double pagibig = hasDeductions ? calculatePagIbig(basicSalary) : 0.0;
-        double tax = hasDeductions
-                ? calculateTax(basicSalary, sss + philhealth + pagibig + totalLateUndertimeDeductions)
-                : 0.0;
+        double nonTaxDeductions = totalLateUndertimeDeductions + sss + philhealth + pagibig;
+        double tax = hasDeductions ? calculateTax(basicSalary, nonTaxDeductions) : 0.0;
+        double totalDeductions = nonTaxDeductions + tax;
 
-        double totalDeductions = totalLateUndertimeDeductions + sss + philhealth + pagibig + tax;
         double netPay = totalCompensation - totalDeductions;
 
         System.out.println("=============================================");
@@ -134,15 +133,16 @@ public class PayrollService {
         System.out.printf("Late & Undertime   : PHP %,10.2f%n", totalLateUndertimeDeductions);
         System.out.printf("SSS Contribution   : PHP %,10.2f%n", sss);
         System.out.printf("PhilHealth         : PHP %,10.2f%n", philhealth);
-        System.out.printf("Pag-IBIG          : PHP %,10.2f%n", pagibig);
-        System.out.printf("Tax Deduction      : PHP %,10.2f%n", tax);
+        System.out.printf("Pag-IBIG           : PHP %,10.2f%n", pagibig);
+        System.out.printf("Withholding Tax    : PHP %,10.2f%n", tax);
         System.out.println("-------------------------------------");
         System.out.printf("Total Deductions   : PHP %,10.2f%n", totalDeductions);
         System.out.println("-------------------------------------");
         System.out.printf("Net Pay            : PHP %,10.2f%n", netPay);
         System.out.println("=============================================");
 
-        // // Late & Undertime Deduction Table
+        // // Late & Undertime Deduction Table --- if you want to display the late and
+        // undertime deductions
         // System.out.println(
         // "============================================================================================");
         // System.out.println(" LATE & UNDERTIME DEDUCTIONS ");
@@ -199,11 +199,24 @@ public class PayrollService {
     }
 
     private static double calculateSSS(double basicSalary) {
-        return (basicSalary > 24750) ? 1125.00 : basicSalary * 0.045;
+        if (basicSalary > 24750) {
+            return 1125.00; // for salaries above 24,750
+        }
+        return basicSalary * 0.045; // for salaries below or equal to 24,750
     }
 
     private static double calculatePhilHealth(double basicSalary) {
-        return Math.min(basicSalary * 0.03 / 2, 900);
+        double premium;
+
+        if (basicSalary <= 10000) {
+            premium = 300; // Fixed premium for salary <= 10,000
+        } else if (basicSalary <= 59999.99) {
+            premium = Math.min(basicSalary * 0.03, 1800); // 3% of salary or 1,800, whichever is lower
+        } else {
+            premium = 1800; // Fixed premium for salary >= 60,000
+        }
+
+        return premium / 2; // Employee pays 50% of the premium
     }
 
     private static double calculatePagIbig(double basicSalary) {
@@ -211,7 +224,23 @@ public class PayrollService {
     }
 
     private static double calculateTax(double basicSalary, double totalDeductions) {
-        double taxableIncome = basicSalary - totalDeductions;
-        return taxableIncome <= 20832 ? 0 : (taxableIncome - 20833) * 0.20;
+        double taxableIncome = basicSalary;
+        double tax = 0.0;
+
+        if (taxableIncome <= 20832) {
+            tax = 0;
+        } else if (taxableIncome <= 33333) {
+            tax = (taxableIncome - 20833) * 0.20;
+        } else if (taxableIncome <= 66667) {
+            tax = 2500 + (taxableIncome - 33333) * 0.25;
+        } else if (taxableIncome <= 166667) {
+            tax = 10833 + (taxableIncome - 66667) * 0.30;
+        } else if (taxableIncome <= 666667) {
+            tax = 40833.33 + (taxableIncome - 166667) * 0.32;
+        } else {
+            tax = 200833.33 + (taxableIncome - 666667) * 0.35;
+        }
+
+        return Math.round(tax * 100.0) / 100.0;
     }
 }
