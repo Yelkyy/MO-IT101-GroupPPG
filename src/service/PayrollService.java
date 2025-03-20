@@ -111,7 +111,7 @@ public class PayrollService {
         System.out.printf("SSS Contribution : %.2f\n", sss);
         System.out.printf("PhilHealth       : %.2f\n", philhealth);
         System.out.printf("Pag-IBIG         : %.2f\n", pagibig);
-        System.out.printf("Tax              : %.2f\n", tax);
+        System.out.printf("Withholding Tax  : %.2f\n", tax);
         System.out.println("-------------------------------------------");
         System.out.printf("Total Deductions : %.2f\n", totalDeductions);
         System.out.println("-------------------------------------------");
@@ -124,11 +124,24 @@ public class PayrollService {
     }
 
     private static double calculateSSS(double basicSalary) {
-        return basicSalary * 0.045;
+        if (basicSalary > 24750) {
+            return 1125.00; // for salaries above 24,750
+        }
+        return basicSalary * 0.045; // for salaries below or equal to 24,750
     }
 
     private static double calculatePhilHealth(double basicSalary) {
-        return basicSalary * 0.03 / 2;
+        double premium;
+
+        if (basicSalary <= 10000) {
+            premium = 300; // Fixed premium for salary <= 10,000
+        } else if (basicSalary <= 59999.99) {
+            premium = Math.min(basicSalary * 0.03, 1800); // 3% of salary or 1,800, whichever is lower
+        } else {
+            premium = 1800; // Fixed premium for salary >= 60,000
+        }
+
+        return premium / 2; // Employee pays 50% of the premium
     }
 
     private static double calculatePagIbig(double basicSalary) {
@@ -136,6 +149,22 @@ public class PayrollService {
     }
 
     private static double calculateTax(double basicSalary) {
-        return basicSalary > 20833 ? (basicSalary - 20833) * 0.20 : 0;
+        double tax = 0.0;
+
+        if (basicSalary <= 20832) {
+            tax = 0;
+        } else if (basicSalary <= 33333) {
+            tax = (basicSalary - 20833) * 0.20;
+        } else if (basicSalary <= 66667) {
+            tax = 2500 + (basicSalary - 33333) * 0.25;
+        } else if (basicSalary <= 166667) {
+            tax = 10833 + (basicSalary - 66667) * 0.30;
+        } else if (basicSalary <= 666667) {
+            tax = 40833.33 + (basicSalary - 166667) * 0.32;
+        } else {
+            tax = 200833.33 + (basicSalary - 666667) * 0.35;
+        }
+
+        return Math.round(tax * 100.0) / 100.0;
     }
 }
