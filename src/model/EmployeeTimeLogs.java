@@ -1,25 +1,47 @@
 package model;
 
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.Duration;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.Arrays;
+import java.util.List;
 
 public class EmployeeTimeLogs {
     private String employeeNumber;
     private String lastName;
     private String firstName;
-    private String date;
+    private LocalDate date; // Changed to LocalDate
     private String logIn;
     private String logOut;
+
+    // List of possible date formats
+    private static final List<DateTimeFormatter> DATE_FORMATS = Arrays.asList(
+            DateTimeFormatter.ofPattern("MM/dd/yyyy"),
+            DateTimeFormatter.ofPattern("yyyy-MM-dd"),
+            DateTimeFormatter.ofPattern("dd-MM-yyyy"));
 
     public EmployeeTimeLogs(String employeeNumber, String lastName, String firstName, String date, String logIn,
             String logOut) {
         this.employeeNumber = employeeNumber;
         this.lastName = lastName;
         this.firstName = firstName;
-        this.date = date;
+        this.date = parseDate(date); // Convert to LocalDate
         this.logIn = logIn;
         this.logOut = logOut;
+    }
+
+    private LocalDate parseDate(String dateStr) {
+        for (DateTimeFormatter formatter : DATE_FORMATS) {
+            try {
+                return LocalDate.parse(dateStr, formatter);
+            } catch (DateTimeParseException e) {
+                // Ignore and try the next format
+            }
+        }
+        System.err.println("Invalid date format: " + dateStr);
+        return null; // Handle invalid dates properly
     }
 
     public String getEmployeeNumber() {
@@ -35,7 +57,7 @@ public class EmployeeTimeLogs {
     }
 
     public String getDate() {
-        return date;
+        return (date != null) ? date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) : "Invalid Date";
     }
 
     public String getLogIn() {
@@ -46,24 +68,20 @@ public class EmployeeTimeLogs {
         return logOut;
     }
 
-    // NEW METHOD: Calculate total hours worked
     public double getHoursWorked() {
         if (logIn == null || logOut == null || logIn.isEmpty() || logOut.isEmpty()) {
-            return 0.0; // If no logs, return 0 hours
+            return 0.0;
         }
 
         try {
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("HH:mm"); // Example: "08:30"
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("H:mm");
             LocalTime inTime = LocalTime.parse(logIn, formatter);
             LocalTime outTime = LocalTime.parse(logOut, formatter);
 
-            // Calculate duration in minutes
             long minutesWorked = Duration.between(inTime, outTime).toMinutes();
-
-            // Convert minutes to decimal hours
             return minutesWorked / 60.0;
         } catch (Exception e) {
-            System.err.println("Error parsing time for Employee #" + employeeNumber);
+            System.err.println("Error processing time log for Employee #" + employeeNumber + ": " + e.getMessage());
             return 0.0;
         }
     }
@@ -71,7 +89,7 @@ public class EmployeeTimeLogs {
     @Override
     public String toString() {
         return "Employee #" + employeeNumber + " | Name: " + firstName + " " + lastName +
-                " | Date: " + date + " | Log In: " + logIn + " | Log Out: " + logOut +
+                " | Date: " + getDate() + " | Log In: " + logIn + " | Log Out: " + logOut +
                 " | Hours Worked: " + getHoursWorked();
     }
 }

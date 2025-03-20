@@ -126,6 +126,10 @@ public class EmployeeDetails {
         return employeeNumber;
     }
 
+    public String getFullName() {
+        return firstName + " " + lastName;
+    }
+
     @Override
     public String toString() {
         return "Employee #" + employeeNumber + " | Name: " + firstName + " " + lastName +

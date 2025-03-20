@@ -2,8 +2,15 @@ package service;
 
 import model.EmployeeDetails;
 import model.EmployeeTimeLogs;
+
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
+import java.time.LocalTime;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.Duration;
 
 public class PayrollService {
 
@@ -58,17 +65,38 @@ public class PayrollService {
     private static void processSingleWeekPayroll(EmployeeDetails employee, List<EmployeeTimeLogs> logs,
             String monthYear, int week) {
         System.out.println("\nProcessing Payroll for " + monthYear + " | Week " + week);
-        displayPayrollSummary(employee, logs, monthYear, week, week);
+        displayPayrollSummary(employee, filterLogs(logs, monthYear, week, week), monthYear, week, week);
     }
 
-    private static void processWeekRangePayroll(EmployeeDetails employee, List<EmployeeTimeLogs> logs, String monthYear,
-            int startWeek, int endWeek) {
+    private static void processWeekRangePayroll(EmployeeDetails employee, List<EmployeeTimeLogs> logs,
+            String monthYear, int startWeek, int endWeek) {
         System.out.println("\nProcessing Payroll for " + monthYear + " | Week " + startWeek + " to Week " + endWeek);
-        displayPayrollSummary(employee, logs, monthYear, startWeek, endWeek);
+        displayPayrollSummary(employee, filterLogs(logs, monthYear, startWeek, endWeek), monthYear, startWeek, endWeek);
     }
 
-    private static void displayPayrollSummary(EmployeeDetails employee, List<EmployeeTimeLogs> logs, String monthYear,
-            int startWeek, int endWeek) {
+    private static List<EmployeeTimeLogs> filterLogs(List<EmployeeTimeLogs> logs, String monthYear, int startWeek,
+            int endWeek) {
+        List<EmployeeTimeLogs> filteredLogs = new ArrayList<>();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MM-yyyy");
+
+        for (EmployeeTimeLogs log : logs) {
+            try {
+                LocalDate logDate = LocalDate.parse(log.getDate(), DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+                String logMonthYear = logDate.format(formatter);
+                int weekOfMonth = (logDate.getDayOfMonth() - 1) / 7 + 1;
+
+                if (logMonthYear.equals(monthYear) && weekOfMonth >= startWeek && weekOfMonth <= endWeek) {
+                    filteredLogs.add(log);
+                }
+            } catch (DateTimeParseException e) {
+                System.out.println("Invalid date format in logs: " + e.getMessage());
+            }
+        }
+        return filteredLogs;
+    }
+
+    private static void displayPayrollSummary(EmployeeDetails employee, List<EmployeeTimeLogs> logs,
+            String monthYear, int startWeek, int endWeek) {
         boolean hasDeductions = (endWeek == 4);
         int weeksSelected = (endWeek - startWeek) + 1;
 
@@ -76,95 +104,114 @@ public class PayrollService {
         double totalCompensation = basicSalary + employee.getRiceSubsidy() + employee.getPhoneAllowance()
                 + employee.getClothingAllowance();
 
-        double lateUndertimeDeductions = hasDeductions ? calculateLateUndertime(logs) : 0.0;
+        List<String[]> lateDeductions = hasDeductions ? calculateLateUndertime(logs) : new ArrayList<>();
+        double totalLateUndertimeDeductions = lateDeductions.isEmpty() ? 0.0
+                : Double.parseDouble(lateDeductions.get(lateDeductions.size() - 1)[3].replace(",", ""));
+
         double sss = hasDeductions ? calculateSSS(basicSalary) : 0.0;
         double philhealth = hasDeductions ? calculatePhilHealth(basicSalary) : 0.0;
         double pagibig = hasDeductions ? calculatePagIbig(basicSalary) : 0.0;
-        double tax = hasDeductions ? calculateTax(basicSalary) : 0.0;
-        double totalDeductions = lateUndertimeDeductions + sss + philhealth + pagibig + tax;
+        double tax = hasDeductions
+                ? calculateTax(basicSalary, sss + philhealth + pagibig + totalLateUndertimeDeductions)
+                : 0.0;
 
+        double totalDeductions = totalLateUndertimeDeductions + sss + philhealth + pagibig + tax;
         double netPay = totalCompensation - totalDeductions;
 
-        System.out.println("===========================================");
-        System.out.println("            PAYROLL SUMMARY");
-        System.out.println("===========================================");
-        System.out.println("Employee ID  : " + employee.getEmployeeNumber());
-        System.out.println("Name         : " + employee.getFirstName() + " " + employee.getLastName());
-        System.out.println("Position     : " + employee.getPosition());
-        System.out.println("Status       : " + employee.getStatus());
-        System.out.println("-------------------------------------------");
-        System.out.println("Month & Year : " + monthYear);
-        System.out.println("Week(s)      : " + startWeek + " - " + endWeek);
-        System.out.println("-------------------------------------------");
-        System.out.println("        COMPENSATION DETAILS");
-        System.out.println("-------------------------------------------");
-        System.out.printf("Basic Salary     : %.2f\n", basicSalary);
-        System.out.printf("Rice Subsidy     : %.2f\n", employee.getRiceSubsidy());
-        System.out.printf("Phone Allowance  : %.2f\n", employee.getPhoneAllowance());
-        System.out.printf("Clothing Allow.  : %.2f\n", employee.getClothingAllowance());
-        System.out.println("-------------------------------------------");
-        System.out.printf("Total Compensation: %.2f\n", totalCompensation);
-        System.out.println("-------------------------------------------");
-        System.out.println("        DEDUCTIONS");
-        System.out.println("-------------------------------------------");
-        System.out.printf("Late/Undertime   : %.2f\n", lateUndertimeDeductions);
-        System.out.printf("SSS Contribution : %.2f\n", sss);
-        System.out.printf("PhilHealth       : %.2f\n", philhealth);
-        System.out.printf("Pag-IBIG         : %.2f\n", pagibig);
-        System.out.printf("Withholding Tax  : %.2f\n", tax);
-        System.out.println("-------------------------------------------");
-        System.out.printf("Total Deductions : %.2f\n", totalDeductions);
-        System.out.println("-------------------------------------------");
-        System.out.printf("NET PAY          : %.2f\n", netPay);
-        System.out.println("===========================================");
+        System.out.println("=============================================");
+        System.out.println("          PAYROLL SUMMARY          ");
+        System.out.println("=============================================");
+        System.out.printf("Employee        : %s (%s)%n", employee.getFullName(), employee.getEmployeeNumber());
+        System.out.printf("Payroll Period  : %s | Week %d - %d%n", monthYear, startWeek, endWeek);
+        System.out.println("-------------------------------------");
+        System.out.printf("Basic Salary       : PHP %,10.2f%n", basicSalary);
+        System.out.printf("Rice Subsidy       : PHP %,10.2f%n", employee.getRiceSubsidy());
+        System.out.printf("Phone Allowance    : PHP %,10.2f%n", employee.getPhoneAllowance());
+        System.out.printf("Clothing Allowance : PHP %,10.2f%n", employee.getClothingAllowance());
+        System.out.println("-------------------------------------");
+        System.out.printf("Total Compensation : PHP %,10.2f%n", totalCompensation);
+        System.out.println("-------------------------------------");
+        System.out.printf("Late & Undertime   : PHP %,10.2f%n", totalLateUndertimeDeductions);
+        System.out.printf("SSS Contribution   : PHP %,10.2f%n", sss);
+        System.out.printf("PhilHealth         : PHP %,10.2f%n", philhealth);
+        System.out.printf("Pag-IBIG          : PHP %,10.2f%n", pagibig);
+        System.out.printf("Tax Deduction      : PHP %,10.2f%n", tax);
+        System.out.println("-------------------------------------");
+        System.out.printf("Total Deductions   : PHP %,10.2f%n", totalDeductions);
+        System.out.println("-------------------------------------");
+        System.out.printf("Net Pay            : PHP %,10.2f%n", netPay);
+        System.out.println("=============================================");
+
+        // // Late & Undertime Deduction Table
+        // System.out.println(
+        // "============================================================================================");
+        // System.out.println(" LATE & UNDERTIME DEDUCTIONS ");
+        // System.out.println(
+        // "============================================================================================");
+        // System.out.printf("| %-12s | %-12s | %-12s | %-12s |%n", "Date", "Late
+        // (mins)", "Undertime (mins)",
+        // "Deduction (PHP)");
+        // System.out.println("-------------------------------------");
+
+        // for (String[] record : lateDeductions) {
+        // System.out.printf("| %-12s | %12s | %12s | %12s |%n",
+        // record[0], record[1], record[2], record[3]);
+        // }
+        // System.out.println(
+        // "============================================================================================\n");
     }
 
-    private static double calculateLateUndertime(List<EmployeeTimeLogs> logs) {
-        return 50.0;
+    private static List<String[]> calculateLateUndertime(List<EmployeeTimeLogs> logs) {
+        List<String[]> lateDeductions = new ArrayList<>();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("H:mm");
+        LocalTime scheduledIn = LocalTime.parse("09:00", formatter);
+        LocalTime scheduledOut = LocalTime.parse("18:00", formatter);
+        double totalDeduction = 0.0;
+
+        for (EmployeeTimeLogs log : logs) {
+            try {
+                LocalTime actualIn = LocalTime.parse(log.getLogIn().trim(), formatter);
+                LocalTime actualOut = LocalTime.parse(log.getLogOut().trim(), formatter);
+
+                long minutesLate = Math.max(0, Duration.between(scheduledIn, actualIn).toMinutes());
+                long minutesUndertime = Math.max(0, Duration.between(actualOut, scheduledOut).toMinutes());
+
+                double deduction = ((minutesLate + minutesUndertime) / 60.0) * 100;
+                totalDeduction += deduction;
+
+                // Store as a String array [date, late minutes, undertime minutes, deduction]
+                lateDeductions.add(new String[] {
+                        log.getDate(),
+                        String.valueOf(minutesLate),
+                        String.valueOf(minutesUndertime),
+                        String.format("%,.2f", deduction)
+                });
+
+            } catch (DateTimeParseException e) {
+                System.out.println(
+                        "Invalid time format for Employee #" + log.getEmployeeNumber() + ": " + e.getMessage());
+            }
+        }
+
+        // Add total deduction at the end of the list for easy access in display
+        lateDeductions.add(new String[] { "TOTAL", "", "", String.format("%,.2f", totalDeduction) });
+        return lateDeductions;
     }
 
     private static double calculateSSS(double basicSalary) {
-        if (basicSalary > 24750) {
-            return 1125.00; // for salaries above 24,750
-        }
-        return basicSalary * 0.045; // for salaries below or equal to 24,750
+        return (basicSalary > 24750) ? 1125.00 : basicSalary * 0.045;
     }
 
     private static double calculatePhilHealth(double basicSalary) {
-        double premium;
-
-        if (basicSalary <= 10000) {
-            premium = 300; // Fixed premium for salary <= 10,000
-        } else if (basicSalary <= 59999.99) {
-            premium = Math.min(basicSalary * 0.03, 1800); // 3% of salary or 1,800, whichever is lower
-        } else {
-            premium = 1800; // Fixed premium for salary >= 60,000
-        }
-
-        return premium / 2; // Employee pays 50% of the premium
+        return Math.min(basicSalary * 0.03 / 2, 900);
     }
 
     private static double calculatePagIbig(double basicSalary) {
         return Math.min(100, basicSalary * 0.02);
     }
 
-    private static double calculateTax(double basicSalary) {
-        double tax = 0.0;
-
-        if (basicSalary <= 20832) {
-            tax = 0;
-        } else if (basicSalary <= 33333) {
-            tax = (basicSalary - 20833) * 0.20;
-        } else if (basicSalary <= 66667) {
-            tax = 2500 + (basicSalary - 33333) * 0.25;
-        } else if (basicSalary <= 166667) {
-            tax = 10833 + (basicSalary - 66667) * 0.30;
-        } else if (basicSalary <= 666667) {
-            tax = 40833.33 + (basicSalary - 166667) * 0.32;
-        } else {
-            tax = 200833.33 + (basicSalary - 666667) * 0.35;
-        }
-
-        return Math.round(tax * 100.0) / 100.0;
+    private static double calculateTax(double basicSalary, double totalDeductions) {
+        double taxableIncome = basicSalary - totalDeductions;
+        return taxableIncome <= 20832 ? 0 : (taxableIncome - 20833) * 0.20;
     }
 }
