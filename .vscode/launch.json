@@ -1,0 +1,12 @@
+{
+    "type": "java",
+    "request": "launch",
+    "name": "Launch MotorPH",
+    "mainClass": "App",
+    "projectName": "MotorPH",
+    "classPaths": [
+        "bin",
+        "lib/opencsv-5.10.jar",
+        "lib/commons-lang3-3.17.0.jar"
+    ]
+}

@@ -1,6 +1,8 @@
 package model;
 
 public class EmployeeDetails {
+
+    // Employee attributes: personal and job-related information
     private String employeeNumber;
     private String lastName;
     private String firstName;
@@ -21,6 +23,7 @@ public class EmployeeDetails {
     private double grossSemiMonthlyRate;
     private double hourlyRate;
 
+    // Constructor to initialize the employee's information
     public EmployeeDetails(String employeeNumber, String lastName, String firstName, String birthday, String address,
             String phoneNumber, String sssNumber, String philhealthNumber, String tinNumber, String pagIbigNumber,
             String status, String position, String immediateSupervisor, double basicSalary, double riceSubsidy,
@@ -46,6 +49,7 @@ public class EmployeeDetails {
         this.hourlyRate = hourlyRate;
     }
 
+    // Getter methods for retrieving employee details
     public String getEmployeeNumber() {
         return employeeNumber;
     }
@@ -122,14 +126,17 @@ public class EmployeeDetails {
         return hourlyRate;
     }
 
+    // Returns the employee's ID (same as employeeNumber)
     public String getEmployeeId() {
         return employeeNumber;
     }
 
+    // Returns the full name of the employee (First and Last name)
     public String getFullName() {
         return firstName + " " + lastName;
     }
 
+    // Provides a string representation of the employee's basic info
     @Override
     public String toString() {
         return "Employee #" + employeeNumber + " | Name: " + firstName + " " + lastName +

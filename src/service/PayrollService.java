@@ -16,29 +16,32 @@ public class PayrollService {
 
     private static final Scanner scanner = new Scanner(System.in);
 
+    // Main method to handle payroll based on user choice
     public static void processPayroll(EmployeeDetails employee, List<EmployeeTimeLogs> logs, String monthYear) {
         System.out.println("Do you want a [1] Single Week or [2] Week Range?");
         int choice = scanner.nextInt();
-        scanner.nextLine();
+        scanner.nextLine(); // Consume the newline
 
         if (choice == 1) {
-            int week = selectWeek();
-            processSingleWeekPayroll(employee, logs, monthYear, week);
+            int week = selectWeek(); // Get the week number
+            processSingleWeekPayroll(employee, logs, monthYear, week); // Process payroll for one week
         } else if (choice == 2) {
-            int startWeek = selectWeek();
-            int endWeek = selectWeekRange(startWeek);
-            processWeekRangePayroll(employee, logs, monthYear, startWeek, endWeek);
+            int startWeek = selectWeek(); // Get the start week
+            int endWeek = selectWeekRange(startWeek); // Get the end week
+            processWeekRangePayroll(employee, logs, monthYear, startWeek, endWeek); // Process payroll for a range of
+                                                                                    // weeks
         } else {
             System.out.println("Invalid choice. Returning to menu.");
         }
     }
 
+    // Get the week number from the user
     private static int selectWeek() {
         int week;
         do {
             System.out.print("Enter Week (1-4): ");
             week = scanner.nextInt();
-            scanner.nextLine();
+            scanner.nextLine(); // Consume the newline
             if (week < 1 || week > 4) {
                 System.out.println("Invalid week. Please enter a value between 1 and 4.");
             }
@@ -46,12 +49,13 @@ public class PayrollService {
         return week;
     }
 
+    // Get the end week for a range from the user
     private static int selectWeekRange(int startWeek) {
         int endWeek;
         do {
             System.out.print("Enter End Week (must be greater than or equal to " + startWeek + " and max 4): ");
             endWeek = scanner.nextInt();
-            scanner.nextLine();
+            scanner.nextLine(); // Consume the newline
             if (endWeek < startWeek || endWeek > 4) {
                 System.out.println("Invalid end week. It must be between " + startWeek + " and 4.");
             }
@@ -59,18 +63,21 @@ public class PayrollService {
         return endWeek;
     }
 
+    // Process payroll for a single week
     private static void processSingleWeekPayroll(EmployeeDetails employee, List<EmployeeTimeLogs> logs,
             String monthYear, int week) {
         System.out.println("\nProcessing Payroll for " + monthYear + " | Week " + week);
         displayPayrollSummary(employee, filterLogs(logs, monthYear, week, week), monthYear, week, week);
     }
 
+    // Process payroll for a range of weeks
     private static void processWeekRangePayroll(EmployeeDetails employee, List<EmployeeTimeLogs> logs,
             String monthYear, int startWeek, int endWeek) {
         System.out.println("\nProcessing Payroll for " + monthYear + " | Week " + startWeek + " to Week " + endWeek);
         displayPayrollSummary(employee, filterLogs(logs, monthYear, startWeek, endWeek), monthYear, startWeek, endWeek);
     }
 
+    // Filter the logs based on the month/year and the week range
     private static List<EmployeeTimeLogs> filterLogs(List<EmployeeTimeLogs> logs, String monthYear, int startWeek,
             int endWeek) {
         List<EmployeeTimeLogs> filteredLogs = new ArrayList<>();
@@ -82,6 +89,7 @@ public class PayrollService {
                 String logMonthYear = logDate.format(formatter);
                 int weekOfMonth = (logDate.getDayOfMonth() - 1) / 7 + 1;
 
+                // Add log if it matches the month/year and falls within the selected week range
                 if (logMonthYear.equals(monthYear) && weekOfMonth >= startWeek && weekOfMonth <= endWeek) {
                     filteredLogs.add(log);
                 }
@@ -92,11 +100,13 @@ public class PayrollService {
         return filteredLogs;
     }
 
+    // Display the payroll summary for the employee
     private static void displayPayrollSummary(EmployeeDetails employee, List<EmployeeTimeLogs> logs,
             String monthYear, int startWeek, int endWeek) {
-        boolean hasDeductions = (endWeek == 4);
-        int weeksSelected = (endWeek - startWeek) + 1;
+        boolean hasDeductions = (endWeek == 4); // Deductions only for the 4th week
+        int weeksSelected = (endWeek - startWeek) + 1; // Number of weeks selected
 
+        // Calculate basic salary based on selected weeks
         double basicSalary = employee.getBasicSalary() * weeksSelected / 4;
         double totalCompensation = employee.getRiceSubsidy() + employee.getPhoneAllowance()
                 + employee.getClothingAllowance();
@@ -105,15 +115,20 @@ public class PayrollService {
         double totalLateUndertimeDeductions = lateDeductions.isEmpty() ? 0.0
                 : Double.parseDouble(lateDeductions.get(lateDeductions.size() - 1)[3].replace(",", ""));
 
+        // Calculate mandatory deductions (SSS, PhilHealth, PagIBIG)
         double sss = hasDeductions ? calculateSSS(basicSalary) : 0.0;
         double philhealth = hasDeductions ? calculatePhilHealth(basicSalary) : 0.0;
         double pagibig = hasDeductions ? calculatePagIbig(basicSalary) : 0.0;
         double nonTaxDeductions = totalLateUndertimeDeductions + sss + philhealth + pagibig;
+
+        // Calculate withholding tax if deductions are applied
         double tax = hasDeductions ? calculateTax(basicSalary, nonTaxDeductions) : 0.0;
         double totalDeductions = nonTaxDeductions + tax;
 
+        // Calculate net pay after all deductions
         double netPay = basicSalary + totalCompensation - totalDeductions;
 
+        // Print the payroll summary
         System.out.println("=============================================");
         System.out.println("          PAYROLL SUMMARY          ");
         System.out.println("=============================================");
@@ -139,6 +154,7 @@ public class PayrollService {
         System.out.println("=============================================");
     }
 
+    // Calculate late and undertime deductions based on time logs
     private static List<String[]> calculateLateUndertime(List<EmployeeTimeLogs> logs) {
         List<String[]> lateDeductions = new ArrayList<>();
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("H:mm");
@@ -157,7 +173,7 @@ public class PayrollService {
                 double deduction = ((minutesLate + minutesUndertime) / 60.0) * 100;
                 totalDeduction += deduction;
 
-                // Store as a String array [date, late minutes, undertime minutes, deduction]
+                // Add deduction details for each log
                 lateDeductions.add(new String[] {
                         log.getDate(),
                         String.valueOf(minutesLate),
@@ -171,18 +187,20 @@ public class PayrollService {
             }
         }
 
-        // Add total deduction at the end of the list for easy access in display
+        // Add total deduction at the end of the list
         lateDeductions.add(new String[] { "TOTAL", "", "", String.format("%,.2f", totalDeduction) });
         return lateDeductions;
     }
 
+    // Calculate the SSS contribution
     private static double calculateSSS(double basicSalary) {
         if (basicSalary > 24750) {
-            return 1125.00; // for salaries above 24,750
+            return 1125.00; // For salaries above 24,750
         }
-        return basicSalary * 0.045; // for salaries below or equal to 24,750
+        return basicSalary * 0.045; // For salaries below or equal to 24,750
     }
 
+    // Calculate the PhilHealth contribution
     private static double calculatePhilHealth(double basicSalary) {
         double premium;
 
@@ -197,14 +215,17 @@ public class PayrollService {
         return premium / 2; // Employee pays 50% of the premium
     }
 
+    // Calculate the Pag-IBIG contribution
     private static double calculatePagIbig(double basicSalary) {
-        return Math.min(100, basicSalary * 0.02);
+        return Math.min(100, basicSalary * 0.02); // 2% or 100, whichever is lower
     }
 
+    // Calculate the withholding tax
     private static double calculateTax(double basicSalary, double totalDeductions) {
         double taxableIncome = basicSalary;
         double tax = 0.0;
 
+        // Calculate the tax based on income ranges
         if (taxableIncome <= 20832) {
             tax = 0;
         } else if (taxableIncome <= 33333) {
